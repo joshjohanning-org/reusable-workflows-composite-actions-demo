@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: joshjohanning-org/composite-action@v1.0.0
+        with:
+          who-to-greet: 'San Dieeego!'
+      - run: touch build.txt
+      - uses: actions/upload-artifact@v3
+        with:
+          name: build
+          path: build.txt
+
+  sonar:
+    runs-on: ubuntu-latest
+    steps:
+    - run: echo "running sonar scans..."
+    
+  dev:
+    needs: [build, sonar]
+    uses: joshjohanning-org/reusable-workflows/.github/workflows/deploy-sample.yml@v1.0.5
+    with:
+      environment: dev
+      artifact-name: build
+    secrets: 
+      conn_str: ${{ secrets.CONN_STR }}
+      
+  qa:
+    needs: [build, sonar, dev]
+    if: github.event_name != 'pull_request' # don't deploy here if pr build
+    uses: joshjohanning-org/reusable-workflows/.github/workflows/deploy-sample.yml@v1.0.5
+    with:
+      environment: qa
+      artifact-name: build
+    secrets: 
+      conn_str: ${{ secrets.CONN_STR }}
+      
+  sandbox:
+    needs: [build, sonar, dev]
+    if: github.event_name != 'pull_request' # don't deploy here if pr build
+    uses: joshjohanning-org/reusable-workflows/.github/workflows/deploy-sample.yml@v1.0.5
+    with:
+      environment: sandbox
+      artifact-name: build
+    secrets: 
+      conn_str: ${{ secrets.CONN_STR }}
+      
+  prod:
+    needs: [build, sonar, dev, qa, sandbox]
+    if: github.event_name != 'pull_request' # don't deploy here if pr build
+    uses: joshjohanning-org/reusable-workflows/.github/workflows/deploy-sample.yml@v1.0.5
+    with:
+      environment: prod
+      artifact-name: build
+    secrets: 
+      conn_str: ${{ secrets.CONN_STR }}
+      
